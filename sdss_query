@@ -1,0 +1,11 @@
+SELECT TOP 10000
+   p.objid,p.ra,p.dec,
+   s.specobjid, s.z as redshift,
+   
+FROM PhotoObj AS p
+   JOIN SpecObj AS s ON s.bestobjid = p.objid
+WHERE 
+   (p.ra > 127) AND (p.ra < 147)
+   AND (p.dec > -2) AND (p.dec < 6)
+   AND (redshift > 0.01) AND (redshift < 0.1)
+
