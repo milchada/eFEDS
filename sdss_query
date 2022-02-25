@@ -1,11 +1,19 @@
+--- Select the desired properties - this is an exhaustive list --- 
 SELECT TOP 10000
-   p.objid,p.ra,p.dec,
-   s.specobjid, s.z as redshift,
-   
+   p.ra,p.dec,
+   s.z as redshift,
+   sp.logMass, sp.ssfr,
+   pp.profMean, pp.bin,
+   pd.rInner, pd.rOuter,
+   zoo.p_el, zoo.p_cs, zoo.p_mg
 FROM PhotoObj AS p
-   JOIN SpecObj AS s ON s.bestobjid = p.objid
+   JOIN SpecObj AS s ON s.specObjID = p.specObjID
+   JOIN stellarMassFSPSGranWideDust AS sp ON sp.specObjID = s.specObjID
+   JOIN PhotoProfile AS pp on pp.objID = p.objID
+   JOIN ProfileDefs AS pd on pd.bin = pp.bin
+   JOIN zooNoSpec AS zoo on zoo.objid = p.objID
 WHERE 
    (p.ra > 127) AND (p.ra < 147)
    AND (p.dec > -2) AND (p.dec < 6)
-   AND (redshift > 0.01) AND (redshift < 0.1)
+   AND (s.z > 0.01) AND (s.z < 0.1)
 
