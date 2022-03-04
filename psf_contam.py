@@ -3,6 +3,7 @@ from astropy.io import fits
 import numpy as np
 import matplotlib.pylab as plt
 from scipy.optimize import curve_fit
+from scipy.integrate import quad
 
 path='' #/data/gnarming/uchadaya/eFEDS/ if on hea comp
 cdf = np.mean(np.mean(fits.getdata(path+'psf1.fits'), axis=1), axis=1)
@@ -19,22 +20,21 @@ x *= (4 * 1.45)
 def psf_curve(r, A, rs, beta):
 	return A * (1 + (r/rs)**2)**(-beta) #Moffat function, beta=2.0 fitted for XMM
 
-fit, cov =  curve_fit(psf_curve, x, sb)
-xp = np.arange(0,100,.1)
-yp = psf_curve(xp, *fit)
-
 def psf_area(r, A, rs, beta): 
-	return 2*np.pi*r * psf_curve(r, A, rs, beta) #
+	#integrating this from r1 to r2 should give me the fraction of photons enclosed between those radii
+		#IF THE PSF IS PROPERLY NORMALISED
+		#in other words, integrating this gives the factor that the raw PSF should be normalised by. 
+	return 2*np.pi*r * psf_curve(r, A, rs, beta) 
 
-from scipy.integrate import quad
-area_psf = quad(psf_area, args=(fit[0],fit[1], fit[2]), a=0, b=np.infty)
+fit, _ =  curve_fit(psf_curve, x, sb)
+area_psf, _ = quad(psf_area, args=(fit[0],fit[1], fit[2]), a=0, b=np.infty) 
+xp = np.arange(0,100,.1)
+yp = psf_curve(xp, *fit)/area_psf
 
-def sb_xrb(sdss, alpha = 9.05e28, beta = 1.62e39, low=False, high=False):  #alpha in erg/s/Msun, beta in erg/s/Msun/yr)
-# "Also Lx-Mstar plot, subtracting only LXR"
-# "Combine the outer few bins"
-# "See galaxies that host AGN based on BPT in SDSS"
-# "See galaxies that host AGN based on eROSITA catalog"
-# #i.e. you might be stacking some faint AGN
+def Lxrb(sdss, alpha = 9.05e28, beta = 1.62e39, low=False, high=False, ism=False):  #alpha in erg/s/Msun, beta in erg/s/Msun/yr)
+	# "Combine the outer few bins"
+	# "See galaxies that host AGN based on eROSITA catalog"
+	# #i.e. you might be stacking some faint AGN
 	dalpha = 0.37e28
 	dbeta = 0.22e39
 	if low:
@@ -43,6 +43,8 @@ def sb_xrb(sdss, alpha = 9.05e28, beta = 1.62e39, low=False, high=False):  #alph
 	if high:
 		alpha += dalpha 
 		beta += dbeta
+	if ism:
+		beta += 8.3e38
 	mstar = 10**sdss['logMass']
 	sfr = 10**(sdss['ssfr'] - 9) * mstar #the -9 converts from Msun/Gyr to Msun/yr
 	return alpha*mstar + beta*sfr
