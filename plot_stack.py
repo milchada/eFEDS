@@ -15,22 +15,18 @@ lcdm = default_cosmology.get()
 
 try:
 	os.chdir('/data/gnarming/uchadaya/galreg/')
+	sdss = ascii.read('sdss_output.csv',delimiter=',')
 except FileNotFoundError:
 	os.chdir('/Users/mila/Documents/Research/Postdoc/eFEDS-galaxies')
-
-sdss = ascii.read('SDSS/sdss_output.csv',delimiter=',')
+	sdss = ascii.read('SDSS/sdss_output.csv',delimiter=',')
 
 def sort(sdss):
-	sfr = sdss['ssfr']+sdss['logMass']
-	sort = np.argsort(sfr)
-	cut1 = sfr[sort][int(len(sfr)/3.)]
-	cut2 = sfr[sort][int(2*len(sfr)/3.)]
-	top = (sfr > cut2)
-	bottom = (sfr < cut1)
-	try:
-		return top.values, bottom.values
-	else:
-		return top, bottom
+    q = np.argsort(sdss['ssfr'])[:int(len(sdss)/3.)]
+    sf = np.argsort(sdss['ssfr'])[int(2*len(sdss)/3.):]
+    try: 
+        return sf.values, q.values
+    except AttributeError:
+        return sf, q
 
 def annulus(array, rmin, rmax):
     x = np.arange(array.shape[0])
@@ -59,7 +55,7 @@ def stacked_image(files, lenx, leny, inputtype='file'):
 			img[startx:endx,starty:endy] += f
 	return ndimage.gaussian_filter(img, sigma=1, order=0)
 
-def stack_sf_q(dir, mean_exp, prefix='low', rmin=50, rmax=100):
+def stack_sf_q(dir, mean_exp, prefix='low', rmin=50, rmax=100, bckmin=25, bckmax=37.5):
 	os.chdir(dir)
 	gals = ascii.read('gal_props.csv', delimiter=',',header_start=0,)
 	quiescent = gals['ind'][np.argsort(gals['ssfr'])[:int(len(gals)/3.)]]
@@ -70,25 +66,31 @@ def stack_sf_q(dir, mean_exp, prefix='low', rmin=50, rmax=100):
 	im_sf = stacked_image(sffiles, 151, 151)[rmin:rmax, rmin:rmax]
 	im_q /= (mean_exp*len(qfiles))
 	im_sf /= (mean_exp*len(qfiles))
-	bck_ind = annulus(im_q, 25, 37.5)
+	bck_ind = annulus(im_q, bckmin, bckmax)
 	q_bck = np.nanmedian(im_q[bck_ind])
 	sf_bck = np.nanmedian(im_sf[bck_ind])
 	return im_q - q_bck, im_sf - sf_bck
 
-def plot_sf_q():
+def plot_sf_q(rmin=50,rmax=100,bckmin=25, bckmax=37.5,c=62.5):
 	fig, ax = plt.subplots(nrows=2, ncols=2, sharex=True, sharey=True)
 	ax1, ax2, ax3, ax4 = ax.flatten()
 	lexp = np.nanmean(np.load('/data/gnarming/uchadaya/galreg/lexp_0520.npy')/5., axis=1)
 	lexp = np.nanmean(lexp[lexp > 1])
 	hexp = np.nanmean(np.load('/data/gnarming/uchadaya/galreg/hexp_0520.npy')/5., axis=1)
 	hexp = np.nanmean(hexp[hexp > 1])
-	imlo_q, imlo_sf = stack_sf_q('/data/gnarming/uchadaya/galreg/lowmass/cutouts/0520/', lexp)
-	imhi_q, imhi_sf = stack_sf_q('/data/gnarming/uchadaya/galreg/highmass/cutouts/0520/', hexp, prefix='high')
+	imlo_q, imlo_sf = stack_sf_q('/data/gnarming/uchadaya/galreg/lowmass/cutouts/0520/', lexp,rmin=rmin,rmax=rmax,bckmin=bckmin, bckmax=bckmax)
+	imhi_q, imhi_sf = stack_sf_q('/data/gnarming/uchadaya/galreg/highmass/cutouts/0520/', hexp, prefix='high',rmin=rmin,rmax=rmax,bckmin=bckmin, bckmax=bckmax)
 	zmax = max(imlo_q.max(), imlo_sf.max(), imhi_q.max(), imhi_sf.max())
 	ax1.imshow(imlo_sf, origin='lower', cmap=cm.RdBu_r, norm=colors.Normalize(-zmax, zmax))
 	ax2.imshow(imhi_sf, origin='lower', cmap=cm.RdBu_r, norm=colors.Normalize(-zmax, zmax))
 	ax3.imshow(imlo_q, origin='lower', cmap=cm.RdBu_r, norm=colors.Normalize(-zmax, zmax))
 	ax4.imshow(imhi_q, origin='lower', cmap=cm.RdBu_r, norm=colors.Normalize(-zmax, zmax))
+	for a in ax.flatten():
+		src_circle = plt.Circle((c, c), bckmin, fill=False, color='k', linestyle='dotted')
+		bck_circle = plt.Circle((c, c), bckmax, fill=False, color='k', linestyle='dotted')
+		a.add_patch(src_circle)
+		a.add_patch(bck_circle)
+    #for paper: fig, ax = plot_sf_q(13,138,25,62.5)
 	return fig, ax 
 
 def cts_area_ratio(tab, prof=False):
